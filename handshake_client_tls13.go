@@ -11,6 +11,7 @@ import (
 	"crypto/hmac"
 	"crypto/rsa"
 	"errors"
+	"fmt"
 	"hash"
 	"sync/atomic"
 	"time"
@@ -401,6 +402,18 @@ func (hs *clientHandshakeStateTLS13) readServerParameters() error {
 	}
 	hs.transcript.Write(encryptedExtensions.marshal())
 
+	if c.extraConfig != nil && c.extraConfig.EnforceNextProtoSelection {
+		if len(encryptedExtensions.alpnProtocol) == 0 {
+			// the server didn't select an ALPN
+			c.sendAlert(alertNoApplicationProtocol)
+			return errors.New("ALPN negotiation failed. Server didn't offer any protocols")
+		}
+		if mutualProtocol([]string{encryptedExtensions.alpnProtocol}, hs.c.config.NextProtos) == "" {
+			// the protocol selected by the server was not offered
+			c.sendAlert(alertNoApplicationProtocol)
+			return fmt.Errorf("ALPN negotiation failed. Server offered: %q", encryptedExtensions.alpnProtocol)
+		}
+	}
 	if encryptedExtensions.alpnProtocol != "" {
 		if len(hs.hello.alpnProtocols) == 0 {
 			c.sendAlert(alertUnsupportedExtension)
@@ -412,7 +425,6 @@ func (hs *clientHandshakeStateTLS13) readServerParameters() error {
 		}
 		c.clientProtocol = encryptedExtensions.alpnProtocol
 	}
-
 	return nil
 }
 

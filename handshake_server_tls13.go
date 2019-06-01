@@ -519,6 +519,11 @@ func illegalClientHelloChange(ch, ch1 *clientHelloMsg) bool {
 func (hs *serverHandshakeStateTLS13) sendServerParameters() error {
 	c := hs.c
 
+	if c.extraConfig != nil && c.extraConfig.EnforceNextProtoSelection && len(c.clientProtocol) == 0 {
+		c.sendAlert(alertNoApplicationProtocol)
+		return fmt.Errorf("ALPN negotiation failed. Client offered: %q", hs.clientHello.alpnProtocols)
+	}
+
 	hs.transcript.Write(hs.clientHello.marshal())
 	hs.transcript.Write(hs.hello.marshal())
 	if _, err := c.writeRecord(recordTypeHandshake, hs.hello.marshal()); err != nil {
