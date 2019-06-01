@@ -912,6 +912,32 @@ func TestHandshakeServerALPN(t *testing.T) {
 	runServerTestTLS13(t, test)
 }
 
+func TestHandshakeServerEnforceALPNMatch(t *testing.T) {
+	clientConn, serverConn := localPipe(t)
+	serverConfig := testConfig.Clone()
+	serverConfig.NextProtos = []string{"proto1", "proto2"}
+	client := Client(clientConn, serverConfig, nil)
+
+	cErrChan := make(chan error)
+	go func() {
+		cErrChan <- client.Handshake()
+	}()
+
+	config := testConfig.Clone()
+	config.NextProtos = []string{"proto3"}
+	extraConf := &ExtraConfig{EnforceNextProtoSelection: true}
+
+	server := Server(serverConn, config, extraConf)
+	err := server.Handshake()
+	if err == nil || err.Error() != "ALPN negotiation failed. Client offered: [\"proto1\" \"proto2\"]" {
+		t.Fatalf("Expected APLN negotiation to fail, got %v", err)
+	}
+	cErr := <-cErrChan
+	if cErr == nil || !strings.Contains(cErr.Error(), "no application protocol") {
+		t.Fatalf("Expect 'no_application_protocol' error, got %v", cErr)
+	}
+}
+
 func TestHandshakeServerALPNNoMatch(t *testing.T) {
 	config := testConfig.Clone()
 	config.NextProtos = []string{"proto3"}
