@@ -216,6 +216,13 @@ GroupSelection:
 		c.extraConfig.ReceivedExtensions(typeClientHello, hs.clientHello.additionalExtensions)
 	}
 
+	if len(hs.clientHello.alpnProtocols) > 0 {
+		if selectedProto, err := negotiateALPN(hs.clientHello.alpnProtocols, c.config.NextProtos); err != nil && selectedProto != "" {
+			hs.encryptedExtensions.alpnProtocol = selectedProto
+			c.clientProtocol = selectedProto
+		}
+	}
+
 	return nil
 }
 
@@ -265,7 +272,8 @@ func (hs *serverHandshakeStateTLS13) checkForResumption() error {
 				return errors.New("tls: client sent unexpected early data")
 			}
 
-			if c.extraConfig != nil && c.extraConfig.MaxEarlyData > 0 &&
+			if sessionState.alpn == c.clientProtocol &&
+				c.extraConfig != nil && c.extraConfig.MaxEarlyData > 0 &&
 				c.extraConfig.Accept0RTT != nil && c.extraConfig.Accept0RTT(sessionState.appData) {
 				hs.encryptedExtensions.earlyData = true
 				c.used0RTT = true
