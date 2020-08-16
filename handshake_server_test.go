@@ -1497,14 +1497,14 @@ var getConfigForClientTests = []struct {
 			for i := range config.SessionTicketKey {
 				config.SessionTicketKey[i] = byte(i)
 			}
-			config.sessionTicketKeys = nil
+			fromConfig(config).sessionTicketKeys = nil
 		},
 		func(clientHello *ClientHelloInfo) (*Config, error) {
 			config := testConfig.Clone()
 			for i := range config.SessionTicketKey {
 				config.SessionTicketKey[i] = 0
 			}
-			config.sessionTicketKeys = nil
+			fromConfig(config).sessionTicketKeys = nil
 			return config, nil
 		},
 		"",
@@ -1526,7 +1526,7 @@ var getConfigForClientTests = []struct {
 		},
 		func(clientHello *ClientHelloInfo) (*Config, error) {
 			config := testConfig.Clone()
-			config.sessionTicketKeys = nil
+			fromConfig(config).sessionTicketKeys = nil
 			return config, nil
 		},
 		"",
@@ -1804,7 +1804,7 @@ func TestAESCipherReordering(t *testing.T) {
 			hasAESGCMHardwareSupport = tc.serverHasAESGCM
 			hs := &serverHandshakeState{
 				c: &Conn{
-					config: &Config{
+					config: &config{
 						CipherSuites: tc.serverCiphers,
 					},
 					vers: VersionTLS12,
@@ -1903,7 +1903,7 @@ func TestAESCipherReorderingTLS13(t *testing.T) {
 			hasAESGCMHardwareSupport = tc.serverHasAESGCM
 			hs := &serverHandshakeStateTLS13{
 				c: &Conn{
-					config: &Config{},
+					config: &config{},
 					vers:   VersionTLS13,
 				},
 				clientHello: &clientHelloMsg{
