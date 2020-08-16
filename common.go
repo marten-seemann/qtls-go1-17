@@ -357,7 +357,9 @@ const (
 
 // ClientHelloInfo contains information from a ClientHello message in order to
 // guide application logic in the GetCertificate and GetConfigForClient callbacks.
-type ClientHelloInfo struct {
+type ClientHelloInfo = tls.ClientHelloInfo
+
+type clientHelloInfo struct {
 	// CipherSuites lists the CipherSuites supported by the client (e.g.
 	// TLS_AES_128_GCM_SHA256, TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256).
 	CipherSuites []uint16
@@ -412,7 +414,7 @@ type ClientHelloInfo struct {
 // Context returns the context of the handshake that is in progress.
 // This context is a child of the context passed to HandshakeContext,
 // if any, and is canceled when the handshake concludes.
-func (c *ClientHelloInfo) Context() context.Context {
+func (c *clientHelloInfo) Context() context.Context {
 	return c.ctx
 }
 
@@ -479,7 +481,9 @@ const (
 // After one has been passed to a TLS function it must not be
 // modified. A Config may be reused; the tls package will also not
 // modify it.
-type Config struct {
+type Config = tls.Config
+
+type config struct {
 	// Rand provides the source of entropy for nonces and RSA blinding.
 	// If Rand is nil, TLS uses the cryptographic random reader in package
 	// crypto/rand.
@@ -720,7 +724,7 @@ type ticketKey struct {
 // ticketKeyFromBytes converts from the external representation of a session
 // ticket key to a ticketKey. Externally, session ticket keys are 32 random
 // bytes and this function expands that into sufficient name and key material.
-func (c *Config) ticketKeyFromBytes(b [32]byte) (key ticketKey) {
+func (c *config) ticketKeyFromBytes(b [32]byte) (key ticketKey) {
 	hashed := sha512.Sum512(b[:])
 	copy(key.keyName[:], hashed[:ticketKeyNameLen])
 	copy(key.aesKey[:], hashed[ticketKeyNameLen:ticketKeyNameLen+16])
@@ -735,13 +739,13 @@ const maxSessionTicketLifetime = 7 * 24 * time.Hour
 
 // Clone returns a shallow clone of c or nil if c is nil. It is safe to clone a Config that is
 // being used concurrently by a TLS client or server.
-func (c *Config) Clone() *Config {
+func (c *config) Clone() *config {
 	if c == nil {
 		return nil
 	}
 	c.mutex.RLock()
 	defer c.mutex.RUnlock()
-	return &Config{
+	return &config{
 		Rand:                        c.Rand,
 		Time:                        c.Time,
 		Certificates:                c.Certificates,
@@ -779,7 +783,7 @@ var deprecatedSessionTicketKey = []byte("DEPRECATED")
 
 // initLegacySessionTicketKeyRLocked ensures the legacy SessionTicketKey field is
 // randomized if empty, and that sessionTicketKeys is populated from it otherwise.
-func (c *Config) initLegacySessionTicketKeyRLocked() {
+func (c *config) initLegacySessionTicketKeyRLocked() {
 	// Don't write if SessionTicketKey is already defined as our deprecated string,
 	// or if it is defined by the user but sessionTicketKeys is already set.
 	if c.SessionTicketKey != [32]byte{} &&
@@ -816,7 +820,7 @@ func (c *Config) initLegacySessionTicketKeyRLocked() {
 // encrypting tickets (ie. the first ticketKey in c.sessionTicketKeys)
 // is not fresh, then a new session ticket key will be
 // created and prepended to c.sessionTicketKeys.
-func (c *Config) ticketKeys(configForClient *Config) []ticketKey {
+func (c *config) ticketKeys(configForClient *config) []ticketKey {
 	// If the ConfigForClient callback returned a Config with explicitly set
 	// keys, use those, otherwise just use the original Config.
 	if configForClient != nil {
@@ -884,7 +888,7 @@ func (c *Config) ticketKeys(configForClient *Config) []ticketKey {
 // all have the same session ticket keys. If the session ticket keys leaks,
 // previously recorded and future TLS connections using those keys might be
 // compromised.
-func (c *Config) SetSessionTicketKeys(keys [][32]byte) {
+func (c *config) SetSessionTicketKeys(keys [][32]byte) {
 	if len(keys) == 0 {
 		panic("tls: keys must have at least one key")
 	}
@@ -899,7 +903,7 @@ func (c *Config) SetSessionTicketKeys(keys [][32]byte) {
 	c.mutex.Unlock()
 }
 
-func (c *Config) rand() io.Reader {
+func (c *config) rand() io.Reader {
 	r := c.Rand
 	if r == nil {
 		return rand.Reader
@@ -907,7 +911,7 @@ func (c *Config) rand() io.Reader {
 	return r
 }
 
-func (c *Config) time() time.Time {
+func (c *config) time() time.Time {
 	t := c.Time
 	if t == nil {
 		t = time.Now
@@ -915,7 +919,7 @@ func (c *Config) time() time.Time {
 	return t()
 }
 
-func (c *Config) cipherSuites() []uint16 {
+func (c *config) cipherSuites() []uint16 {
 	if c.CipherSuites != nil {
 		return c.CipherSuites
 	}
@@ -929,7 +933,7 @@ var supportedVersions = []uint16{
 	VersionTLS10,
 }
 
-func (c *Config) supportedVersions() []uint16 {
+func (c *config) supportedVersions() []uint16 {
 	versions := make([]uint16, 0, len(supportedVersions))
 	for _, v := range supportedVersions {
 		if c != nil && c.MinVersion != 0 && v < c.MinVersion {
@@ -943,7 +947,7 @@ func (c *Config) supportedVersions() []uint16 {
 	return versions
 }
 
-func (c *Config) maxSupportedVersion() uint16 {
+func (c *config) maxSupportedVersion() uint16 {
 	supportedVersions := c.supportedVersions()
 	if len(supportedVersions) == 0 {
 		return 0
@@ -967,14 +971,14 @@ func supportedVersionsFromMax(maxVersion uint16) []uint16 {
 
 var defaultCurvePreferences = []CurveID{X25519, CurveP256, CurveP384, CurveP521}
 
-func (c *Config) curvePreferences() []CurveID {
+func (c *config) curvePreferences() []CurveID {
 	if c == nil || len(c.CurvePreferences) == 0 {
 		return defaultCurvePreferences
 	}
 	return c.CurvePreferences
 }
 
-func (c *Config) supportsCurve(curve CurveID) bool {
+func (c *config) supportsCurve(curve CurveID) bool {
 	for _, cc := range c.curvePreferences() {
 		if cc == curve {
 			return true
@@ -985,7 +989,7 @@ func (c *Config) supportsCurve(curve CurveID) bool {
 
 // mutualVersion returns the protocol version to use given the advertised
 // versions of the peer. Priority is given to the peer preference order.
-func (c *Config) mutualVersion(peerVersions []uint16) (uint16, bool) {
+func (c *config) mutualVersion(peerVersions []uint16) (uint16, bool) {
 	supportedVersions := c.supportedVersions()
 	for _, peerVersion := range peerVersions {
 		for _, v := range supportedVersions {
@@ -1001,7 +1005,7 @@ var errNoCertificates = errors.New("tls: no certificates configured")
 
 // getCertificate returns the best certificate for the given ClientHelloInfo,
 // defaulting to the first element of c.Certificates.
-func (c *Config) getCertificate(clientHello *ClientHelloInfo) (*Certificate, error) {
+func (c *config) getCertificate(clientHello *ClientHelloInfo) (*Certificate, error) {
 	if c.GetCertificate != nil &&
 		(len(c.Certificates) == 0 || len(clientHello.ServerName) > 0) {
 		cert, err := c.GetCertificate(clientHello)
@@ -1055,7 +1059,7 @@ func (c *Config) getCertificate(clientHello *ClientHelloInfo) (*Certificate, err
 //
 // This function will call x509.ParseCertificate unless c.Leaf is set, which can
 // incur a significant performance cost.
-func (chi *ClientHelloInfo) SupportsCertificate(c *Certificate) error {
+func (chi *clientHelloInfo) SupportsCertificate(c *Certificate) error {
 	// Note we don't currently support certificate_authorities nor
 	// signature_algorithms_cert, and don't check the algorithms of the
 	// signatures on the chain (which anyway are a SHOULD, see RFC 8446,
@@ -1065,7 +1069,8 @@ func (chi *ClientHelloInfo) SupportsCertificate(c *Certificate) error {
 	if config == nil {
 		config = &Config{}
 	}
-	vers, ok := config.mutualVersion(chi.SupportedVersions)
+	conf := fromConfig(config)
+	vers, ok := conf.mutualVersion(chi.SupportedVersions)
 	if !ok {
 		return errors.New("no mutually supported protocol versions")
 	}
@@ -1103,7 +1108,7 @@ func (chi *ClientHelloInfo) SupportsCertificate(c *Certificate) error {
 		}
 		// Finally, there needs to be a mutual cipher suite that uses the static
 		// RSA key exchange instead of ECDHE.
-		rsaCipherSuite := selectCipherSuite(chi.CipherSuites, config.cipherSuites(), func(c *cipherSuite) bool {
+		rsaCipherSuite := selectCipherSuite(chi.CipherSuites, conf.cipherSuites(), func(c *cipherSuite) bool {
 			if c.flags&suiteECDHE != 0 {
 				return false
 			}
@@ -1134,7 +1139,7 @@ func (chi *ClientHelloInfo) SupportsCertificate(c *Certificate) error {
 	}
 
 	// The only signed key exchange we support is ECDHE.
-	if !supportsECDHE(config, chi.SupportedCurves, chi.SupportedPoints) {
+	if !supportsECDHE(conf, chi.SupportedCurves, chi.SupportedPoints) {
 		return supportsRSAFallback(errors.New("client doesn't support ECDHE, can only use legacy RSA key exchange"))
 	}
 
@@ -1155,7 +1160,7 @@ func (chi *ClientHelloInfo) SupportsCertificate(c *Certificate) error {
 			}
 			var curveOk bool
 			for _, c := range chi.SupportedCurves {
-				if c == curve && config.supportsCurve(c) {
+				if c == curve && conf.supportsCurve(c) {
 					curveOk = true
 					break
 				}
@@ -1180,7 +1185,7 @@ func (chi *ClientHelloInfo) SupportsCertificate(c *Certificate) error {
 	// Make sure that there is a mutually supported cipher suite that works with
 	// this certificate. Cipher suite selection will then apply the logic in
 	// reverse to pick it. See also serverHandshakeState.cipherSuiteOk.
-	cipherSuite := selectCipherSuite(chi.CipherSuites, config.cipherSuites(), func(c *cipherSuite) bool {
+	cipherSuite := selectCipherSuite(chi.CipherSuites, conf.cipherSuites(), func(c *cipherSuite) bool {
 		if c.flags&suiteECDHE == 0 {
 			return false
 		}
@@ -1212,7 +1217,7 @@ func (chi *ClientHelloInfo) SupportsCertificate(c *Certificate) error {
 // Deprecated: NameToCertificate only allows associating a single certificate
 // with a given name. Leave that field nil to let the library select the first
 // compatible chain from Certificates.
-func (c *Config) BuildNameToCertificate() {
+func (c *config) BuildNameToCertificate() {
 	c.NameToCertificate = make(map[string]*Certificate)
 	for i := range c.Certificates {
 		cert := &c.Certificates[i]
@@ -1239,7 +1244,7 @@ const (
 	keyLogLabelServerTraffic   = "SERVER_TRAFFIC_SECRET_0"
 )
 
-func (c *Config) writeKeyLog(label string, clientRandom, secret []byte) error {
+func (c *config) writeKeyLog(label string, clientRandom, secret []byte) error {
 	if c.KeyLogWriter == nil {
 		return nil
 	}
